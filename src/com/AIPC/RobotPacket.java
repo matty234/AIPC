@@ -1,3 +1,4 @@
+package com.AIPC;
 
 
 public class RobotPacket implements RCCommand{
@@ -9,6 +10,12 @@ public class RobotPacket implements RCCommand{
 		setCommands(commands);
 	}
 	
+	public RobotPacket(byte mode, byte command) {
+		setMode(mode);
+		byte[] commands = { command };
+		setCommands(commands);
+	}
+
 	public byte getMode() {
 		return mode;
 	}
