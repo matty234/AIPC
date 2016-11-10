@@ -17,17 +17,17 @@ import spark.Spark;
 
 public class AIPC {
 	private final static String NXT_MAC = "00165316455E";
-	private static final int PORT = 5000;
+	private static final int PORT = 8080;
 	
 	static RobotConnection robotConnection;
 	public static void main(String[] args) throws NXTCommException, IOException, InterruptedException {
 		System.out.println("Connecting to NXT with MAC: "+NXT_MAC);
-		//NXTInfo nxtInfo = new NXTInfo(NXTCommFactory.BLUETOOTH, "NXT", "00165316455E");			
-		//robotConnection = new RobotConnection(nxtInfo);
+		NXTInfo nxtInfo = new NXTInfo(NXTCommFactory.BLUETOOTH, "NXT", "00165316455E");			
+		robotConnection = new RobotConnection(nxtInfo);
 		
 		
 		System.out.println("Attempting Handshake...");
-		boolean robotHandshake = true;//robotConnection.handshake();
+		boolean robotHandshake = robotConnection.handshake();
 		
 		
 		if(robotHandshake) {
@@ -36,9 +36,7 @@ public class AIPC {
 		} else {
 			System.out.println("Robot handshake was not successful");
 		}
-		
-		//robotConnection.writeRobotPacket(null);
-	
+			
 		
 		//robotConnection.close();
 
@@ -59,6 +57,8 @@ public class AIPC {
 
 			if(aiResponse.result.action.equals("navigate"))	
 				return handleNavigateAction(aiResponse.result.parameters);
+			if(aiResponse.result.action.equals("infront"))	
+				return handleInfront(aiResponse.result.parameters);
 			else if(aiResponse.result.action.equals("robotState"))
 				return handleGetRobotState();
 			
@@ -70,10 +70,9 @@ public class AIPC {
 	
 	private static String handleNavigateAction(Parameters parameters) throws IOException {
 		String[] locations = parameters.location;
-		byte[] commands = new byte[locations.length*2];
+		byte[] commands = new byte[locations.length];
 		for (int i = 0; i < commands.length; i++) {
 			commands[i] = convertFromStringToByte(locations[i]);
-			commands[i++] = 0x00;
 		}
 		robotConnection.writeRobotPacket(new RobotPacket(Modes.NAVIGATE, commands)); // Navigate follows: mode, location, 0x00, location, 0x00 etc...
 		if(locations.length == 1 && locations.equals("home")){
@@ -82,15 +81,17 @@ public class AIPC {
 			return ""; // Leave API.ai to respond
 		}
 	}
-	
+	private static String handleInfront(Parameters parameters) throws IOException {
+		return "{\"speech\": \"I'm not talking to the robot atm, but I would tell you what is in front\"}";
+	}
 	public static byte convertFromStringToByte(String string) {
-		if(string == "the park"){
+		if(string.equals("the park")){
+			return RobotConnection.PARK;
+		} else if(string.equals("the shop")) {
 			return RobotConnection.SHOP;
-		} else if(string == "the shop") {
-			return RobotConnection.SHOP;
-		} else if(string == "the office") {
+		} else if(string.equals("the office")) {
 			return RobotConnection.OFFICE;
-		} else if(string == "home") {
+		} else if(string.equals("home")) {
 			return RobotConnection.HOME;
 		} else {
 			return 0x00;
