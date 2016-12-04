@@ -5,6 +5,7 @@ public class AIResult {
 	public String action;
 	public Parameters parameters;
 	public static class Parameters {
-		public String[] location;
+		public String[] locations;
+		public String hailFrom;
 	}
 }

@@ -1,15 +1,15 @@
 package com.AIPC;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
-import java.util.HashMap;
 
-import com.google.gson.Gson;
 import com.AIPC.RCCommand.Modes;
 import com.AIPC.models.AIResponse;
 import com.AIPC.models.AIResult.Parameters;
+import com.google.gson.Gson;
+import com.squareup.okhttp.MediaType;
+import com.squareup.okhttp.OkHttpClient;
+import com.squareup.okhttp.Request;
+import com.squareup.okhttp.RequestBody;
 
-import lejos.pc.comm.NXTComm;
 import lejos.pc.comm.NXTCommException;
 import lejos.pc.comm.NXTCommFactory;
 import lejos.pc.comm.NXTInfo;
@@ -18,7 +18,12 @@ import spark.Spark;
 public class AIPC {
 	private final static String NXT_MAC = "00165316455E";
 	private static final int PORT = 8080;
+
+	private static String currentSender = "1097868430248910";
+	private static String facebookPageToken = "EAAQ0xjo27OkBADjhNio0TZB1IpisjfxaM5caZBRwKAXGeamZAiPSpZCbKQlDzoXz68pzuoqu6gVzQ57vCkL4IMG0l1yOrzL5ovTOgN8aiZBrSLDHno8GjPq0fhFjxLHgTg37WsossLt0VZASxxqCNCPQwY3DuyInNZC1CHtNxHL0wZDZD";
+	private static MediaType jsonHead = MediaType.parse("application/json; charset=utf-8");
 	
+	static OkHttpClient client = new OkHttpClient();
 	static RobotConnection robotConnection;
 	public static void main(String[] args) throws NXTCommException, IOException, InterruptedException {
 		System.out.println("Connecting to NXT with MAC: "+NXT_MAC);
@@ -54,9 +59,11 @@ public class AIPC {
 			res.type("application/json");
 			AIResponse aiResponse = new Gson().fromJson(req.body(), AIResponse.class);
 			System.out.println(req.body());
-
-			if(aiResponse.result.action.equals("navigate"))	
+			if (aiResponse.originalRequest != null && aiResponse.originalRequest.source == "facebook") currentSender = aiResponse.originalRequest.sender.id;
+			if(aiResponse.result.action.equals("navigate"))	{
+				sendFare(6);
 				return handleNavigateAction(aiResponse.result.parameters);
+			}
 			if(aiResponse.result.action.equals("infront"))	
 				return handleInfront(aiResponse.result.parameters);
 			else if(aiResponse.result.action.equals("robotState"))
@@ -69,7 +76,7 @@ public class AIPC {
 	
 	
 	private static String handleNavigateAction(Parameters parameters) throws IOException {
-		String[] locations = parameters.location;
+		String[] locations = parameters.locations;
 		byte[] commands = new byte[locations.length];
 		for (int i = 0; i < commands.length; i++) {
 			commands[i] = convertFromStringToByte(locations[i]);
@@ -100,4 +107,21 @@ public class AIPC {
 	private static String handleGetRobotState() {
 		return "{\"speech\": \"Everything is looking good! Give me something to do!\"}";
 	}
+	
+	private static void sendFare(int fare) throws IOException {
+		RequestBody body = RequestBody.create(jsonHead, "{\"recipient\":{\"id\":\"" + currentSender
+				+ "\"},\"message\":{\"text\":\"" + getFareMessage(fare) + "\"}}");
+
+		Request request = new Request.Builder()
+				.url("https://graph.facebook.com/v2.6/me/messages?access_token=" + facebookPageToken).post(body)
+				.build();
+
+		client.newCall(request).execute();
+	}
+
+	private static String getFareMessage(int fare) {
+		return "Thank you for riding with TaxiBot, your fare is £6";
+	}
+
+
 }
