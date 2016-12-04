@@ -38,6 +38,28 @@ public class AIPC {
 		if(robotHandshake) {
 			System.out.println("Handshake successful");
 			startWebServer();
+			
+			new Thread(new Runnable() {
+				
+				@Override
+				public void run() {
+					try {
+						while(true) {
+							RobotPacket rb = robotConnection.readRobotPacket();
+							System.out.println("Rec: RB"+rb.getMode());
+							switch (rb.getMode()) {
+							case Modes.FARE:
+								sendFare(rb.getCommands()[0] & 0xFF);
+								break;
+							default:
+								break;
+							}
+						}
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
+				}
+			}).start();
 		} else {
 			System.out.println("Robot handshake was not successful");
 		}
@@ -61,7 +83,6 @@ public class AIPC {
 			System.out.println(req.body());
 			if (aiResponse.originalRequest != null && aiResponse.originalRequest.source == "facebook") currentSender = aiResponse.originalRequest.sender.id;
 			if(aiResponse.result.action.equals("navigate"))	{
-				sendFare(6);
 				return handleNavigateAction(aiResponse.result.parameters);
 			}
 			if(aiResponse.result.action.equals("infront"))	
@@ -110,7 +131,9 @@ public class AIPC {
 	
 	private static void sendFare(int fare) throws IOException {
 		RequestBody body = RequestBody.create(jsonHead, "{\"recipient\":{\"id\":\"" + currentSender
-				+ "\"},\"message\":{\"text\":\"" + getFareMessage(fare) + "\"}}");
+				+ "\"},\"message\": {\"attachment\": { \"type\": \"template\", \"payload\": { \"template_type\": \"button\",\r\n" + 
+				"        \"text\": \""+getFareMessage(fare)+"\", \"buttons\": [ { \"type\": \"web_url\", \"url\": \"https://mattbrown.guru/pay-fare\",\r\n" + 
+				"            \"title\": \"Pay Fare\" }  ] } } } }");
 
 		Request request = new Request.Builder()
 				.url("https://graph.facebook.com/v2.6/me/messages?access_token=" + facebookPageToken).post(body)
@@ -120,7 +143,8 @@ public class AIPC {
 	}
 
 	private static String getFareMessage(int fare) {
-		return "Thank you for riding with TaxiBot, your fare is £6";
+		return String.format("Thank you for riding with TaxiBot, your fare is £%.2f", 
+				(double) fare/100d);
 	}
 
 
