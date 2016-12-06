@@ -1,8 +1,10 @@
 package com.AIPC;
+
 import java.io.IOException;
 
 import com.AIPC.RCCommand.Modes;
 import com.AIPC.models.AIResponse;
+import com.AIPC.models.FareHandler;
 import com.AIPC.models.AIResult.Parameters;
 import com.google.gson.Gson;
 import com.squareup.okhttp.MediaType;
@@ -18,61 +20,42 @@ import spark.Spark;
 public class AIPC {
 	private final static String NXT_MAC = "00165316455E";
 	private static final int PORT = 8080;
+	private final static String FARE_PAYMENT_URL = "https://farepayment.herokuapp.com/";
 
-	private static String currentSender = "1097868430248910";
+	private static String currentSender = "";
 	private static String facebookPageToken = "EAAQ0xjo27OkBADjhNio0TZB1IpisjfxaM5caZBRwKAXGeamZAiPSpZCbKQlDzoXz68pzuoqu6gVzQ57vCkL4IMG0l1yOrzL5ovTOgN8aiZBrSLDHno8GjPq0fhFjxLHgTg37WsossLt0VZASxxqCNCPQwY3DuyInNZC1CHtNxHL0wZDZD";
 	private static MediaType jsonHead = MediaType.parse("application/json; charset=utf-8");
-	
 	static OkHttpClient client = new OkHttpClient();
 	static RobotConnection robotConnection;
+
 	public static void main(String[] args) throws NXTCommException, IOException, InterruptedException {
-		System.out.println("Connecting to NXT with MAC: "+NXT_MAC);
-		NXTInfo nxtInfo = new NXTInfo(NXTCommFactory.BLUETOOTH, "NXT", "00165316455E");			
+		System.out.println("Connecting to NXT with MAC: " + NXT_MAC);
+		NXTInfo nxtInfo = new NXTInfo(NXTCommFactory.BLUETOOTH, "NXT", "00165316455E");
 		robotConnection = new RobotConnection(nxtInfo);
-		
-		
+
 		System.out.println("Attempting Handshake...");
 		boolean robotHandshake = robotConnection.handshake();
-		
-		
-		if(robotHandshake) {
+
+		if (robotHandshake) {
 			System.out.println("Handshake successful");
 			startWebServer();
-			
-			new Thread(new Runnable() {
-				
-				@Override
-				public void run() {
-					try {
-						while(true) {
-							RobotPacket rb = robotConnection.readRobotPacket();
-							System.out.println("Rec: RB"+rb.getMode());
-							switch (rb.getMode()) {
-							case Modes.FARE:
-								sendFare(rb.getCommands()[0] & 0xFF);
-								break;
-							default:
-								break;
-							}
-						}
-					} catch (IOException e) {
-						e.printStackTrace();
-					}
-				}
-			}).start();
+
+			WaitForPacket waitForPacket = new WaitForPacket(robotConnection);
+			waitForPacket.setFareHandler((fare) -> {
+				sendFare(fare);
+				currentSender = "";
+			});
 		} else {
 			System.out.println("Robot handshake was not successful");
 		}
-			
-		
-		//robotConnection.close();
 
+		// robotConnection.close();
 
 	}
-	
+
 	static void startWebServer() {
 		System.out.println("Starting web server on port: " + PORT);
-		Spark.port(PORT); 
+		Spark.port(PORT);
 
 		Spark.get("/", (req, res) -> {
 			return "Welcome to the robot interface";
@@ -81,71 +64,76 @@ public class AIPC {
 			res.type("application/json");
 			AIResponse aiResponse = new Gson().fromJson(req.body(), AIResponse.class);
 			System.out.println(req.body());
-			if (aiResponse.originalRequest != null && aiResponse.originalRequest.source == "facebook") currentSender = aiResponse.originalRequest.sender.id;
-			if(aiResponse.result.action.equals("navigate"))	{
+			if (aiResponse.originalRequest != null && aiResponse.originalRequest.source == "facebook"
+					&& currentSender == "")
+				currentSender = aiResponse.originalRequest.sender.id;
+			if (aiResponse.result.action.equals("navigate")) {
 				return handleNavigateAction(aiResponse.result.parameters);
 			}
-			if(aiResponse.result.action.equals("infront"))	
-				return handleInfront(aiResponse.result.parameters);
-			else if(aiResponse.result.action.equals("robotState"))
+			if (aiResponse.result.action.equals("robotState"))
 				return handleGetRobotState();
-			
-			return "";
-			
+			return ""; // Let api.ai handle all other calls, like a demigod
 		});
 	}
-	
-	
+
 	private static String handleNavigateAction(Parameters parameters) throws IOException {
-		String[] locations = parameters.locations;
-		byte[] commands = new byte[locations.length];
-		for (int i = 0; i < commands.length; i++) {
-			commands[i] = convertFromStringToByte(locations[i]);
-		}
-		robotConnection.writeRobotPacket(new RobotPacket(Modes.NAVIGATE, commands)); // Navigate follows: mode, location, 0x00, location, 0x00 etc...
-		if(locations.length == 1 && locations.equals("home")){
-			return "{\"speech\": \"Okay, I'm going to head home\"}";
+		if (currentSender == "") {
+			String[] locations = parameters.locations;
+			byte[] commands = new byte[locations.length];
+			for (int i = 0; i < commands.length; i++) {
+				commands[i] = convertFromStringToByte(locations[i]);
+			}
+			robotConnection.writeRobotPacket(new RobotPacket(Modes.NAVIGATE, commands));
+			if (locations.length == 1 && locations.equals("home")) {
+				return "{\"speech\": \"Okay, I'm going to head home\"}";
+			} else {
+				return ""; // Leave API.ai to respond
+			}
 		} else {
-			return ""; // Leave API.ai to respond
+			return "{\"speech\": \"Okay, I'm currently on another job. Try again in a few minutes!\"}";
 		}
 	}
-	private static String handleInfront(Parameters parameters) throws IOException {
-		return "{\"speech\": \"I'm not talking to the robot atm, but I would tell you what is in front\"}";
-	}
+
 	public static byte convertFromStringToByte(String string) {
-		if(string.equals("the park")){
+		if (string.equals("the park")) {
 			return RobotConnection.PARK;
-		} else if(string.equals("the shop")) {
+		} else if (string.equals("the shop")) {
 			return RobotConnection.SHOP;
-		} else if(string.equals("the office")) {
+		} else if (string.equals("the office")) {
 			return RobotConnection.OFFICE;
-		} else if(string.equals("home")) {
+		} else if (string.equals("home")) {
 			return RobotConnection.HOME;
 		} else {
 			return 0x00;
 		}
 	}
+
 	private static String handleGetRobotState() {
 		return "{\"speech\": \"Everything is looking good! Give me something to do!\"}";
 	}
-	
-	private static void sendFare(int fare) throws IOException {
-		RequestBody body = RequestBody.create(jsonHead, "{\"recipient\":{\"id\":\"" + currentSender
-				+ "\"},\"message\": {\"attachment\": { \"type\": \"template\", \"payload\": { \"template_type\": \"button\",\r\n" + 
-				"        \"text\": \""+getFareMessage(fare)+"\", \"buttons\": [ { \"type\": \"web_url\", \"url\": \"https://mattbrown.guru/pay-fare\",\r\n" + 
-				"            \"title\": \"Pay Fare\" }  ] } } } }");
+
+	private static void sendFare(int fare) {
+		RequestBody body = RequestBody.create(jsonHead,
+				"{\"recipient\":{\"id\":\"" + currentSender
+						+ "\"},\"message\": {\"attachment\": { \"type\": \"template\", \"payload\": { \"template_type\": \"button\",\r\n"
+						+ "        \"text\": \"" + getFareMessage(fare)
+						+ "\", \"buttons\": [ { \"type\": \"web_url\", \"url\": \""+FARE_PAYMENT_URL+"?fare="+fare+"\",\r\n"
+						+ "            \"title\": \"Pay Fare\" }  ] } } } }");
 
 		Request request = new Request.Builder()
 				.url("https://graph.facebook.com/v2.6/me/messages?access_token=" + facebookPageToken).post(body)
 				.build();
 
-		client.newCall(request).execute();
+		try {
+			client.newCall(request).execute();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+
 	}
 
 	private static String getFareMessage(int fare) {
-		return String.format("Thank you for riding with TaxiBot, your fare is £%.2f", 
-				(double) fare/100d);
+		return String.format("Thank you for riding with TaxiBot, your fare is \u00A3%.2f", (double) fare / 100d);
 	}
-
 
 }
