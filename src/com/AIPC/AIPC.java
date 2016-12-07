@@ -103,6 +103,14 @@ public class AIPC {
 			return RobotConnection.OFFICE;
 		} else if (string.equals("home")) {
 			return RobotConnection.HOME;
+		} else if (string.equals("the church")) {
+			return RobotConnection.CHURCH;
+		} else if (string.equals("the hospital")) {
+			return RobotConnection.HOSPITAL;
+		} else if (string.equals("the supermarket")) {
+			return RobotConnection.SUPERMARKET;
+		} else if (string.equals("the station")) {
+			return RobotConnection.STATION;
 		} else {
 			return 0x00;
 		}

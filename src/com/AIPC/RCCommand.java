@@ -29,11 +29,15 @@ public interface RCCommand {
 	  public final byte  // PILOT
 	  	LOCATION = 0x01;
 	  	
-	  public final byte  // PILOT
-	  	HOME = 0x01,
-	  	SHOP = 0x02,
-	  	PARK = 0x03,
-	  	OFFICE = 0x04;
+	  public final byte
+		HOME = 0x01,
+		SHOP = 0x02,
+		PARK = 0x03,
+		OFFICE = 0x04,
+		CHURCH = 0x05,
+		HOSPITAL = 0x06,
+		SUPERMARKET = 0x07,
+		STATION = 0x08;
 	  
 	  public final Waypoint  // PILOT
 	  	HOMEPOINT = new Waypoint(0, 0),
