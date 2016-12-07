@@ -77,7 +77,7 @@ public class AIPC {
 	}
 
 	private static String handleNavigateAction(Parameters parameters) throws IOException {
-		if (currentSender == "") {
+	//	if (currentSender == "") {
 			String[] locations = parameters.locations;
 			byte[] commands = new byte[locations.length];
 			for (int i = 0; i < commands.length; i++) {
@@ -89,9 +89,9 @@ public class AIPC {
 			} else {
 				return ""; // Leave API.ai to respond
 			}
-		} else {
+		/*} else {
 			return "{\"speech\": \"Okay, I'm currently on another job. Try again in a few minutes!\"}";
-		}
+		}*/
 	}
 
 	public static byte convertFromStringToByte(String string) {
